@@ -9,6 +9,7 @@ import SystemMessageVue from "./components/Content/SystemMessage.vue";
 import UserMessageVue from "./components/Content/UserMessage.vue";
 import ContentColumnVue from "./components/Content/ContentColumn.vue";
 import ScreenVue from "./components/Screenshot/Screen.vue";
+import SliderVue from "./components/Slider/Slider.vue";
 </script>
 
 <template>
@@ -20,6 +21,7 @@ import ScreenVue from "./components/Screenshot/Screen.vue";
       </div>
       <ContentColumnVue style="width: calc(100% - 66%); max-height: 10vh" />
     </div>
+    <div class="slider-container"><SliderVue /></div>
   </div>
 </template>
 
@@ -30,12 +32,22 @@ body {
   padding: 0;
 }
 
+.slider-container {
+  width: 100vw;
+  height: 100px;
+  padding: 0px 0px;
+  min-height: 100px;
+  background-color: #111;
+  border-top: 1px solid rgba(229, 231, 235, 0.25);
+  display: flex;
+}
+
 .columns {
   display: flex;
   width: 100vw;
-  height: calc(100vh - 36px);
-  max-height: calc(100vh - 36px);
-  min-height: calc(100vh - 36px);
+  height: calc(100vh - 136px);
+  max-height: calc(100vh - 136px);
+  min-height: calc(100vh - 136px);
   flex-direction: row;
 }
 

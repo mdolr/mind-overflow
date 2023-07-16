@@ -10,28 +10,12 @@ const messages = ref<Array<any>>([]);
 
 onMounted(async () => {
   await listen("content", (event: any) => {
-    console.log("event", event);
-    for (const item of event.payload) {
-      const ids = messages.value.map((message: any) => message.id);
+    // console.log("event", event);
+    messages.value = event.payload.rows
+      .sort((a: any, b: any) => a.id - b.id)
+      .reverse();
 
-      if (!ids.includes(item.id)) {
-        // Find the right index to insert while respecting ascending createdAt order
-        let index = 0;
-
-        for (const id of ids) {
-          if (item.id > id) index++;
-          else break;
-        }
-
-        messages.value.splice(index, 0, item);
-      }
-    }
-
-    messages.value = messages.value.sort(
-      (a: any, b: any) => a.timestamp - b.timestamp
-    );
-
-    console.log("Messages", messages.value);
+    // console.log("Messages", messages.value);
   });
 
   await invoke("db_get_content");
@@ -48,7 +32,7 @@ onMounted(async () => {
         :key="message.id"
         :message="message"
         :type="'user'"
-        :index="messages.length - index"
+        :index="index"
       />
     </div>
   </div>
@@ -62,9 +46,9 @@ div {
 }
 
 .scrollable {
-  max-height: calc(100vh - 72px);
+  max-height: calc(100vh - 172px);
   overflow-y: scroll;
-  flex-direction: column;
+  flex-direction: column-reverse;
   display: flex;
 }
 </style>

@@ -36,6 +36,18 @@ pub struct ContentRow {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ContentPayload {
+    origin: String,
+    rows: Vec<ContentRow>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SliderDates {
+    highest_created_at: f64,
+    lowest_created_at: f64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct ScreenshotRow {
     image: Vec<u8>,
     source: String,
@@ -43,6 +55,12 @@ pub struct ScreenshotRow {
     created_at: f64,
     // optional field:
     base64_image: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScreenshotPayload {
+    origin: String,
+    rows: Vec<ScreenshotRow>,
 }
 
 const DATABASE_URL: &str = "mind_overflow.sqlite3";
@@ -101,7 +119,7 @@ fn screen_process(window: tauri::Window) {
         // fs::write("../public/screenshot_chinois.png", buffer).unwrap();
         // println!("运行耗时: {:?}", start.elapsed());
         db_insert_screenshot(buffer).unwrap();
-        db_get_screenshot(None, None, window.clone());
+        db_get_screenshot(None, None, None, window.clone());
 
         // Delay for 5 seconds
         std::thread::sleep(Duration::from_secs(5));
@@ -113,18 +131,27 @@ fn screen_process(window: tauri::Window) {
 fn db_insert_screenshot(buffer: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
     let conn = DB_CONN.lock().unwrap();
 
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as f64
+        * 1000.0;
+
+    println!("Insert transcript called at: {}", created_at);
     conn.execute(
         "INSERT INTO screenshots (image, source_type, source, created_at) VALUES (?1, ?2, ?3, ?4)",
-        params![
-            &buffer,
-            "screenshot",
-            "desktop",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as f64
-        ],
+        params![&buffer, "screenshot", "desktop", created_at],
     )?;
+
+    println!("Inserted screenshot into database");
+    // print the timestamp created_at inserted
+    println!(
+        "created_at: {}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as f64
+    );
 
     Ok(())
 }
@@ -201,7 +228,7 @@ fn audio_process(window: tauri::Window) {
             }
 
             println!("Getting content");
-            db_get_content(None, None, window.clone());
+            db_get_content(None, None, None, window.clone());
         }
     });
 
@@ -285,7 +312,7 @@ fn audio_stream(
 
     while *user_speaking.lock().unwrap() || *user_started.lock().unwrap() == None {
         // Let recording go for roughly three seconds.
-        println!("Listening");
+        // println!("Listening");
         std::thread::sleep(std::time::Duration::from_millis(1 * 100));
 
         if start_time.elapsed() > std::time::Duration::from_secs(60) {
@@ -386,19 +413,67 @@ fn audio_transcript(
         }
     }
 
+    println!("Transcript finished");
     Ok(results)
 }
 
 #[tauri::command]
-fn db_get_content(before: Option<f64>, after: Option<f64>, window: tauri::Window) {
+fn db_get_slider(window: tauri::Window) {
+    let conn = DB_CONN.lock().unwrap();
+
+    let mut stmt = conn
+        // Select the (min, max) created_at from both tables screenshot and content
+        .prepare(
+            "SELECT MAX(created_at) AS highest_created_at, MIN(created_at) AS lowest_created_at
+            FROM (
+                SELECT created_at FROM screenshots
+                UNION
+                SELECT created_at FROM content
+            ) AS combined_tables;
+            ",
+        )
+        .unwrap();
+
+    let rows = stmt
+        .query_map(params![], |row| {
+            Ok(SliderDates {
+                highest_created_at: row.get(0)?,
+                lowest_created_at: row.get(1)?,
+            })
+        })
+        .unwrap();
+
+    let mut results = Vec::new();
+    for row_result in rows {
+        match row_result {
+            Ok(row_data) => results.push(row_data),
+            Err(err) => eprintln!("Database error: {}", err),
+        }
+    }
+
+    window
+        .emit("slider", &results)
+        .expect("Failed to emit event");
+}
+
+#[tauri::command]
+fn db_get_content(
+    before: Option<f64>,
+    after: Option<f64>,
+    origin: Option<std::string::String>,
+    window: tauri::Window,
+) {
     let conn = DB_CONN.lock().unwrap();
 
     let before_time = match before {
         Some(time) => time,
-        None => std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as f64,
+        None => {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as f64
+                * 1000.0
+        }
     };
 
     let after_time = after.unwrap_or(0.0);
@@ -430,21 +505,36 @@ fn db_get_content(before: Option<f64>, after: Option<f64>, window: tauri::Window
         }
     }
 
+    // emite content payload
     window
-        .emit("content", &results)
+        .emit(
+            "content",
+            &ContentPayload {
+                origin: origin.unwrap_or("".to_string()),
+                rows: results,
+            },
+        )
         .expect("Failed to emit event");
 }
 
 #[tauri::command]
-fn db_get_screenshot(before: Option<f64>, after: Option<f64>, window: tauri::Window) {
+fn db_get_screenshot(
+    before: Option<f64>,
+    after: Option<f64>,
+    origin: Option<std::string::String>,
+    window: tauri::Window,
+) {
     let conn = DB_CONN.lock().unwrap();
 
     let before_time = match before {
         Some(time) => time,
-        None => std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as f64,
+        None => {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as f64
+                * 1000.0
+        }
     };
 
     let after_time = after.unwrap_or(0.0);
@@ -479,17 +569,41 @@ fn db_get_screenshot(before: Option<f64>, after: Option<f64>, window: tauri::Win
     }
 
     window
-        .emit("screenshot", &results)
+        .emit(
+            "screenshot",
+            &ScreenshotPayload {
+                origin: origin.unwrap_or("".to_string()),
+                rows: results,
+            },
+        )
         .expect("Failed to emit event");
 }
 
 fn db_insert_transcript(transcript: &TranscriptSegment) -> Result<(), Box<dyn std::error::Error>> {
     let conn = DB_CONN.lock().unwrap();
 
+    // created_at in milliseconds
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as f64
+        * 1000.0;
+    println!("Insert transcript called at: {}", created_at);
+
     conn.execute(
         "INSERT INTO content (content, context, source_type, source, created_at, started_at, ended_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![&transcript.content, Option::<String>::None, "audio", "microphone", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as f64, transcript.started_at, transcript.ended_at],
+        params![&transcript.content, "None", "audio", "microphone", created_at, transcript.started_at, transcript.ended_at],
     )?;
+
+    println!("Inserted transcript into database");
+    // print the timestamp created_at inserted
+    println!(
+        "created_at: {}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as f64
+    );
 
     Ok(())
 }
@@ -564,10 +678,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             audio_start,
             audio_stop,
+            screen_start,
+            screen_stop,
             db_get_content,
             db_get_screenshot,
-            screen_start,
-            screen_stop
+            db_get_slider,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -7,10 +7,10 @@ const blob = ref(null);
 
 onMounted(async () => {
   await listen("screenshot", (event) => {
-    console.log("BLOB");
+    console.log("BLOB", event);
 
-    if ((event.payload as any).length && (event.payload as any)[0]) {
-      blob.value = (event.payload as any)[0].base64_image;
+    if ((event.payload as any).rows.length && (event.payload as any).rows[0]) {
+      blob.value = (event.payload as any).rows[0].base64_image;
     }
   });
 
@@ -26,9 +26,9 @@ onMounted(async () => {
 
 <style scoped>
 div {
-  max-height: calc(100vh - 36px);
-  height: calc(100vh - 36px);
-  min-height: calc(100vh - 36px);
+  max-height: calc(100vh - 136px);
+  height: calc(100vh - 136px);
+  min-height: calc(100vh - 136px);
   padding: 0px;
   margin: 0px;
 }
@@ -36,5 +36,6 @@ div {
 .fit-div {
   width: 100%;
   height: 100%;
+  border-radius: 0px !important;
 }
 </style>
