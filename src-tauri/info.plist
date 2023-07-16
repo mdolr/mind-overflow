@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>write some text describing the usage of the permission here</string>
+    <key>NSCameraUsageDescription</key>
+    <string>write some text describing the usage of the permission here</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>write some text describing the usage of the permission here</string>
+    <key>NSScreenRecordingUsageDescription</key>
+    <string>write some text describing why your app needs screen recording permissions here</string>   
+  </dict>
+</plist>
